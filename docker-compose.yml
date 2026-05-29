@@ -1,0 +1,132 @@
+x-airflow-common:
+  &airflow-common
+  image: apache/airflow:2.8.1
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-metadata-db/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+    AIRFLOW_CONN_POSTGRES_STATS: postgresql://postgres:postgres@postgres_stats_db:5432/stats_db
+    AIRFLOW_CONN_CLICKHOUSE_DEFAULT: clickhouse://default:@clickhouse_server:8123/default
+    AIRFLOW_VAR_POSTGRES_HOST: postgres_db
+    AIRFLOW_VAR_POSTGRES_PORT: '5432'
+    AIRFLOW_VAR_POSTGRES_DB: stats_db
+    AIRFLOW_VAR_POSTGRES_USER: postgres
+    AIRFLOW_VAR_POSTGRES_PASSWORD: postgres
+    AIRFLOW_VAR_CLICKHOUSE_HOST: clickhouse_server
+    AIRFLOW_VAR_CLICKHOUSE_PORT: '8123'
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+  networks:
+    - data_pipeline_net
+  restart: always
+
+services:
+  # PostgreSQL для метаданных Airflow
+  airflow-metadata-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-metadata-db-volume:/var/lib/postgresql/data
+    networks:
+      - data_pipeline_net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  # PostgreSQL для хранения статистики
+  postgres_db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: stats_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-volume:/var/lib/postgresql/data
+    networks:
+      - data_pipeline_net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  # ClickHouse для витрины данных
+  clickhouse_server:
+    image: clickhouse/clickhouse-server:26.5
+    environment:
+      CLICKHOUSE_DB: datamart
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse-volume:/var/lib/clickhouse
+    networks:
+      - data_pipeline_net
+    restart: always
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  # Веб-сервер Airflow
+  airflow_webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      - airflow-metadata-db
+      - postgres_db
+      - clickhouse_server
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Airflow Scheduler
+  airflow_scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      - airflow-metadata-db
+      - postgres_db
+      - clickhouse_server
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Инициализация Airflow (создание БД и пользователя)
+  airflow-init:
+    <<: *airflow-common
+    command: >
+      bash -c "airflow db migrate && 
+               airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin"
+    depends_on:
+      - airflow-metadata-db
+    restart: "no"
+
+networks:
+  data_pipeline_net:
+    driver: bridge
+
+volumes:
+  airflow-metadata-db-volume:
+  postgres-volume:
+  clickhouse-volume:

@@ -12,6 +12,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Volumes
+dags/
+logs/
+plugins/
+
 # Other
 .ipynb
 tests/
+test.md
+readme.md

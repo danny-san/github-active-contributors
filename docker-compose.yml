@@ -53,6 +53,7 @@ services:
       - "5434:5432"
     volumes:
       - postgres-volume:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
     networks:
       - data_pipeline_net
     healthcheck:
@@ -65,7 +66,6 @@ services:
   clickhouse_server:
     image: clickhouse/clickhouse-server:26.5
     environment:
-      CLICKHOUSE_DB: datamart
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: default
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
@@ -74,6 +74,7 @@ services:
       - "9000:9000"
     volumes:
       - clickhouse-volume:/var/lib/clickhouse
+      - ./init-scripts/clickhouse:/docker-entrypoint-initdb.d
     networks:
       - data_pipeline_net
     restart: always

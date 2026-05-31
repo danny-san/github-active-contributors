@@ -1,11 +1,12 @@
 import requests
 import pandas as pd
+import psycopg2
 
 
 def fetch_data_from_github():
     GH_REPO_SEARCH_URL = 'https://api.github.com/search/repositories'
     TOP_100_PARAMS = {
-        'q': 'Q',
+        'q': 'a',
         'sort': 'stars',
         'order': 'desc',
         'per_page': '100'
@@ -93,10 +94,54 @@ def transform_and_load_to_postgres(repos):
         pd.to_datetime(postgres_df['created_at'])
     )
 
-    return postgres_df
+    try:
+        connection = psycopg2.connect(
+            host='localhost',
+            port=5434,
+            user='postgres',
+            password='postgres',
+            database='stats_db'
+        )
+        cursor = connection.cursor()
+
+        insert_query = '''
+            INSERT INTO raw_repositories
+            (id, name, full_name, owner_login, stargazers_count, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO NOTHING
+        '''
+
+        data_to_insert = [
+            (
+                row['id'],
+                row['name'],
+                row['full_name'],
+                row['owner_login'],
+                row['stargazers_count'],
+                row['created_at']
+            )
+            for _, row in postgres_df.iterrows()
+        ]
+
+        cursor.executemany(insert_query, data_to_insert)
+        connection.commit()
+
+    except psycopg2.Error as e:
+        if connection:
+            connection.rollback()
+        raise Exception(f'Ошибка PostgreSQL: {e.pgerror}')
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+    return
 
 
 if __name__ == '__main__':
     data = fetch_data_from_github()
-    print(transform_and_load_to_postgres(data))
-    print('ok')
+    print('fetch_data_from_github — OK')
+    transform_and_load_to_postgres(data)
+    print('transform_and_load_to_postgres — OK')

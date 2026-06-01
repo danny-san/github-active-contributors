@@ -8,14 +8,14 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
     AIRFLOW_CONN_POSTGRES_STATS: postgresql://postgres:postgres@postgres_stats_db:5432/stats_db
-    AIRFLOW_CONN_CLICKHOUSE_DEFAULT: clickhouse://default:@clickhouse_server:8123/default
+    AIRFLOW_CONN_CLICKHOUSE_DEFAULT: clickhouse://default:@clickhouse_server:9000/default
     AIRFLOW_VAR_POSTGRES_HOST: postgres_db
     AIRFLOW_VAR_POSTGRES_PORT: '5432'
     AIRFLOW_VAR_POSTGRES_DB: stats_db
     AIRFLOW_VAR_POSTGRES_USER: postgres
     AIRFLOW_VAR_POSTGRES_PASSWORD: postgres
     AIRFLOW_VAR_CLICKHOUSE_HOST: clickhouse_server
-    AIRFLOW_VAR_CLICKHOUSE_PORT: '8123'
+    AIRFLOW_VAR_CLICKHOUSE_PORT: '9000'
     _PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-driver pandas psycopg2-binary requests"
   volumes:
     - ./dags:/opt/airflow/dags

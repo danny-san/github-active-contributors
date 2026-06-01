@@ -5,25 +5,30 @@ import pandas as pd
 import psycopg2
 import requests
 from airflow import DAG
-from airflow.operators.python import PythonOperator
 from airflow.exceptions import AirflowException
+from airflow.models import Variable
+from airflow.operators.python import PythonOperator
 from clickhouse_driver import Client
 
 
 logger = logging.getLogger(__name__)
 
 # Конфигурация подключений из переменных Airflow
-POSTGRES_HOST = 'postgres_db'
-POSTGRES_PORT = 5432
-POSTGRES_DB = 'stats_db'
-POSTGRES_USER = 'postgres'
-POSTGRES_PASSWORD = 'postgres'
+POSTGRES_CONFIG = {
+    'host': Variable.get('POSTGRES_HOST'),
+    'port': int(Variable.get('POSTGRES_PORT')),
+    'user': Variable.get('POSTGRES_USER'),
+    'password': Variable.get('POSTGRES_PASSWORD'),
+    'database': Variable.get('POSTGRES_DB')
+}
 
-CLICKHOUSE_HOST = 'clickhouse_server'
-CLICKHOUSE_PORT = 9000
-CLICKHOUSE_USER = 'default'
-CLICKHOUSE_PASSWORD = 'default'
-CLICKHOUSE_DATABASE = 'default'
+CLICKHOUSE_CONFIG = {
+    'host': Variable.get('CLICKHOUSE_HOST'),
+    'port': int(Variable.get('CLICKHOUSE_PORT')),
+    'user': 'default',
+    'password': 'default',
+    'database': 'default'
+}
 
 
 def fetch_data_from_github(**context):
@@ -144,16 +149,8 @@ def transform_and_load_to_postgres(**context):
     cursor = None
 
     try:
-        logger.info(
-            f'Подключаюсь к PostgreSQL {POSTGRES_HOST}:{POSTGRES_PORT}...'
-        )
-        connection = psycopg2.connect(
-            host=POSTGRES_HOST,
-            port=POSTGRES_PORT,
-            user=POSTGRES_USER,
-            password=POSTGRES_PASSWORD,
-            database=POSTGRES_DB,
-        )
+        logger.info('Подключаюсь к PostgreSQL...')
+        connection = psycopg2.connect(**POSTGRES_CONFIG)
         cursor = connection.cursor()
 
         insert_query = '''
@@ -209,13 +206,7 @@ def aggregate_and_push_to_clickhouse(**context):
 
     try:
         logger.info('Подключаюсь к PostgreSQL для агрегации...')
-        postgres_connection = psycopg2.connect(
-            host=POSTGRES_HOST,
-            port=POSTGRES_PORT,
-            user=POSTGRES_USER,
-            password=POSTGRES_PASSWORD,
-            database=POSTGRES_DB,
-        )
+        postgres_connection = psycopg2.connect(**POSTGRES_CONFIG)
         postgres_cursor = postgres_connection.cursor()
 
         select_query = '''
@@ -237,16 +228,8 @@ def aggregate_and_push_to_clickhouse(**context):
 
         logger.info(f'Получено {len(aggregated_data)} агрегированных записей')
 
-        logger.info(
-            f'Подключаюсь к ClickHouse {CLICKHOUSE_HOST}:{CLICKHOUSE_PORT}...'
-        )
-        clickhouse_client = Client(
-            host=CLICKHOUSE_HOST,
-            port=CLICKHOUSE_PORT,
-            user=CLICKHOUSE_USER,
-            password=CLICKHOUSE_PASSWORD,
-            database=CLICKHOUSE_DATABASE,
-        )
+        logger.info('Подключаюсь к ClickHouse...')
+        clickhouse_client = Client(**CLICKHOUSE_CONFIG)
 
         current_date = date.today()
 

@@ -16,6 +16,7 @@ x-airflow-common:
     AIRFLOW_VAR_POSTGRES_PASSWORD: postgres
     AIRFLOW_VAR_CLICKHOUSE_HOST: clickhouse_server
     AIRFLOW_VAR_CLICKHOUSE_PORT: '8123'
+    _PIP_ADDITIONAL_REQUIREMENTS: "clickhouse-driver pandas psycopg2-binary requests"
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
